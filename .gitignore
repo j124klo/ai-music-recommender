@@ -245,3 +245,6 @@ Thumbs.db
 
 # Tokeny logowania
 .cache*
+
+# Baza wektorowa ChromaDB
+music_db/
