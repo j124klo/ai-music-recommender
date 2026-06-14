@@ -26,7 +26,10 @@ try:
     for i, track in enumerate(top_tracks['items']):
         artist = track['artists'][0]['name']
         name = track['name']
-        popularity = track['popularity']
+        
+        # Bezpieczne pobieranie popularności - jeśli jej nie ma, wpisze "Brak danych"
+        popularity = track.get('popularity', 'Brak danych')
+        
         print(f"{i+1}. {artist} - {name} (Popularność: {popularity}/100)")
     print("---------------------------------------------")
 
