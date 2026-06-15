@@ -20,8 +20,8 @@ linux:
 
 In backend folder create ".env" file:
 #Spotify Configuration
-SPOTIPY_CLIENT_ID="93f76b85a37243fc9df1a54bbc3cf6bd"
-SPOTIPY_CLIENT_SECRET="90ddba580b734d0d9e7df475f1bfb1c3"
+SPOTIPY_CLIENT_ID="..."
+SPOTIPY_CLIENT_SECRET="..."
 SPOTIPY_REDIRECT_URI="http://127.0.0.1:8000/callback"
 #Last.fm Configuration
 LASTFM_API_KEY="..."
