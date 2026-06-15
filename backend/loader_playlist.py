@@ -149,10 +149,10 @@ if __name__ == "__main__":
         # Filtrowanie tagów na bazie długości oraz czarnej listy
         valid_tags = []
         for t in tags:
-            if t not in banned_tags and len(t.split()) <= 3:
+            if t not in banned_tags and len(t.split()) <= 4:
                 valid_tags.append(t)
                 
-        valid_tags = valid_tags[:4] # bierzemy tylko 4 najpopularniejsze słowa
+        valid_tags = valid_tags[:10] # bierzemy tylko 10 najpopularniejszych słów
         
         if not valid_tags:
             print("   -> Pomijam (brak wartościowych tagów)")
