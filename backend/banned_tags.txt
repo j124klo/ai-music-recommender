@@ -1,5 +1,4 @@
 seen live
-favorites
 loved
 awesome
 beautiful
@@ -7,3 +6,41 @@ hits
 radio
 rmf fm
 zet
+favorite
+favourite
+favorites
+favourites
+ulubione
+love
+amazing
+masterpiece
+best
+great
+good stuff
+10/10
+kocham
+super
+zajebiste
+scrobbled
+spotify
+playlist
+mp3
+ipod
+itunes
+to listen
+check out
+fix me
+tagme
+eska
+trójka
+antyradio
+radio edit
+top 40
+top 10
+top 3
+top 100
+top
+top 5
+top 50
+billboard
+chart

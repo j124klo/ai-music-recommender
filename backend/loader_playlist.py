@@ -15,7 +15,8 @@ LASTFM_API_KEY = os.getenv("LASTFM_API_KEY")
 
 AUTO_DEEP_THRESHOLD = 34  
 FAST_FIRST_COUNT = 17     
-FAST_LAST_COUNT = 17      
+FAST_LAST_COUNT = 17 
+BATCH_SAVE_SIZE = 1000 # Co ile utworów zapisywać tymczasowo do bazy      
 
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope="user-top-read playlist-read-private playlist-read-collaborative"))
 client = chromadb.PersistentClient(path="./music_db")
@@ -67,7 +68,6 @@ def fetch_all_tracks(playlist_id):
     return all_items
 
 def get_existing_signatures():
-    """NOWOŚĆ: Pobiera wszystkie sygnatury z bazy, aby chronić przed duplikatami (Ghost IDs)."""
     try:
         existing_data = collection.get(include=["metadatas"])
         signatures = set()
@@ -91,7 +91,6 @@ if __name__ == "__main__":
 
     banned_tags = load_banned_tags()
     
-    # KROK ZABEZPIECZAJĄCY: Pobieramy listę piosenek, które już znamy
     existing_signatures = get_existing_signatures()
     print(f"Baza zawiera obecnie {len(existing_signatures)} unikalnych utworów.\n")
 
@@ -120,6 +119,8 @@ if __name__ == "__main__":
     docs_to_insert = []
     metadatas_to_insert = []
     ids_to_insert = []
+    
+    total_saved_new_tracks = 0 # Licznik, żeby na końcu wyświetlić poprawną sumę
 
     print(f"\nRozpoczynam analizę {len(selected_items)} wybranych utworów...\n")
 
@@ -135,7 +136,6 @@ if __name__ == "__main__":
         track_id = track.get('id')
         if not track_id: continue
         
-        # --- ZABEZPIECZENIE PRZED DUPLIKATAMI (Ghost IDs) ---
         sig = f"{artist_name.lower().strip()} - {clean_title(raw_title)}"
         print(f"[{i+1}/{len(selected_items)}] {artist_name} - {raw_title}")
         
@@ -158,15 +158,35 @@ if __name__ == "__main__":
         metadatas_to_insert.append({"artist": artist_name, "title": raw_title, "spotify_id": track_id})
         ids_to_insert.append(track_id)
         
-        # Dodajemy sygnaturę do wykluczeń w locie, żeby zablokować ewentualne powtórki wewnątrz tej samej playlisty!
         existing_signatures.add(sig) 
 
+        # --- NOWOŚĆ: CZĘŚCIOWY ZAPIS (CHECKPOINTING) ---
+        if len(docs_to_insert) >= BATCH_SAVE_SIZE:
+            print(f"\n[AUTO-ZAPIS] Osiągnięto paczkę {BATCH_SAVE_SIZE} utworów. Zapisuję do bazy wektorowej...")
+            collection.upsert(
+                documents=docs_to_insert,
+                metadatas=metadatas_to_insert,
+                ids=ids_to_insert
+            )
+            total_saved_new_tracks += len(docs_to_insert)
+            print("[AUTO-ZAPIS] Pomyślnie zrzucono dane na dysk. Wznawiam odpytywanie Last.fm...\n")
+            
+            # Czyszczenie pamięci przed kolejną partią danych
+            docs_to_insert = []
+            metadatas_to_insert = []
+            ids_to_insert = []
+
+    # --- ZAPIS KOŃCOWY (DLA TEGO CO ZOSTAŁO W KOSZYKU) ---
     if docs_to_insert:
+        print(f"\nRozpoczynam zapis końcowy ostatnich {len(docs_to_insert)} utworów do bazy ChromaDB...")
         collection.upsert(
             documents=docs_to_insert,
             metadatas=metadatas_to_insert,
             ids=ids_to_insert
         )
-        print(f"\nSukces! Dodano {len(docs_to_insert)} NOWYCH utworów do bazy wektorowej!")
+        total_saved_new_tracks += len(docs_to_insert)
+
+    if total_saved_new_tracks > 0:
+        print(f"\nSukces! Zakończono pracę. Pomyślnie dodano łącznie {total_saved_new_tracks} NOWYCH utworów do bazy wektorowej!")
     else:
         print("\nNie dodano nowych danych (wszystkie utwory były duplikatami lub brakło tagów).")
