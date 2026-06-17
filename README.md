@@ -68,16 +68,27 @@ To start the server, run
 
 windows:
 
-./backend/start_backend/start_backend.bat
+./start_server/start_server.bat
 
 linux/mac os
 
-(when using for the first time) chmod +x backend/start_backend/start_backend.sh
+(when using for the first time) chmod +x start_server/start_server.sh
 
-./backend/start_backend/start_backend.sh
+./start_server/start_server.sh
 
 Ctrl + C to shut down
 
 You can see ai music recommender api at http://127.0.0.1:8000/docs
+
+########################################################################################
+
+1 Otwórz drugie, nowe okno terminala i wejdź do folderu frontendu:
+cd frontend
+
+2 Zainstaluj zależności zdefiniowane w pliku package.json:
+npm install
+
+3 Uruchom serwer deweloperski Vite:
+npm run dev
 
 ########################################################################################
