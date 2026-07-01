@@ -82,6 +82,8 @@ You can see ai music recommender api at http://127.0.0.1:8000/docs
 
 ########################################################################################
 
+warning trzeba pobrać Node.js z przeglądarki
+
 1 Otwórz drugie, nowe okno terminala i wejdź do folderu frontendu:
 cd frontend
 
