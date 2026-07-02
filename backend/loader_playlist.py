@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import chromadb
+from chromadb.utils import embedding_functions
 
 # =====================================================================
 #                          KONFIGURACJA MODUŁOWA
@@ -16,11 +17,21 @@ LASTFM_API_KEY = os.getenv("LASTFM_API_KEY")
 AUTO_DEEP_THRESHOLD = 34  
 FAST_FIRST_COUNT = 17     
 FAST_LAST_COUNT = 17 
-BATCH_SAVE_SIZE = 1000 # Co ile utworów zapisywać tymczasowo do bazy      
+BATCH_SAVE_SIZE = 1000       
 
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope="user-top-read playlist-read-private playlist-read-collaborative"))
-client = chromadb.PersistentClient(path="./music_db")
-collection = client.get_or_create_collection(name="spotify_tracks")
+
+# Nowy, wielojęzyczny model NLP
+sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+    model_name="paraphrase-multilingual-MiniLM-L12-v2"
+)
+
+db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "music_db")
+client = chromadb.PersistentClient(path=db_path)
+collection = client.get_or_create_collection(
+    name="spotify_tracks",
+    embedding_function=sentence_transformer_ef
+)
 
 # =====================================================================
 #                          FUNKCJE POMOCNICZE
@@ -120,7 +131,7 @@ if __name__ == "__main__":
     metadatas_to_insert = []
     ids_to_insert = []
     
-    total_saved_new_tracks = 0 # Licznik, żeby na końcu wyświetlić poprawną sumę
+    total_saved_new_tracks = 0
 
     print(f"\nRozpoczynam analizę {len(selected_items)} wybranych utworów...\n")
 
@@ -136,11 +147,15 @@ if __name__ == "__main__":
         track_id = track.get('id')
         if not track_id: continue
         
+        # Pobieranie roku wydania ze Spotify
+        album = track.get('album', {})
+        year = album.get('release_date', '')[:4] if album.get('release_date') else 'Brak'
+        
         sig = f"{artist_name.lower().strip()} - {clean_title(raw_title)}"
         print(f"[{i+1}/{len(selected_items)}] {artist_name} - {raw_title}")
         
         if sig in existing_signatures:
-            print("   -> Pomijam (Utwór już istnieje w bazie pod innym ID!)")
+            print("   -> Pomijam (Utwór już istnieje w bazie!)")
             continue
             
         tags = get_lastfm_tags(artist_name, clean_title(raw_title))
@@ -154,13 +169,16 @@ if __name__ == "__main__":
 
         tags_string = ", ".join(valid_tags)
         
-        docs_to_insert.append(tags_string)
+        # Tworzymy "zdanie" (dokument) poszerzone o wykonawcę i rok
+        document_text = f"Wykonawca: {artist_name}. Rok wydania: {year}. Gatunki i klimat: {tags_string}."
+        
+        docs_to_insert.append(document_text)
         metadatas_to_insert.append({"artist": artist_name, "title": raw_title, "spotify_id": track_id})
         ids_to_insert.append(track_id)
         
         existing_signatures.add(sig) 
 
-        # --- NOWOŚĆ: CZĘŚCIOWY ZAPIS (CHECKPOINTING) ---
+        # --- CHECKPOINTING ---
         if len(docs_to_insert) >= BATCH_SAVE_SIZE:
             print(f"\n[AUTO-ZAPIS] Osiągnięto paczkę {BATCH_SAVE_SIZE} utworów. Zapisuję do bazy wektorowej...")
             collection.upsert(
@@ -171,12 +189,11 @@ if __name__ == "__main__":
             total_saved_new_tracks += len(docs_to_insert)
             print("[AUTO-ZAPIS] Pomyślnie zrzucono dane na dysk. Wznawiam odpytywanie Last.fm...\n")
             
-            # Czyszczenie pamięci przed kolejną partią danych
             docs_to_insert = []
             metadatas_to_insert = []
             ids_to_insert = []
 
-    # --- ZAPIS KOŃCOWY (DLA TEGO CO ZOSTAŁO W KOSZYKU) ---
+    # --- ZAPIS KOŃCOWY ---
     if docs_to_insert:
         print(f"\nRozpoczynam zapis końcowy ostatnich {len(docs_to_insert)} utworów do bazy ChromaDB...")
         collection.upsert(

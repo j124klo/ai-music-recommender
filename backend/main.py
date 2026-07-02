@@ -4,7 +4,9 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 import chromadb
+from chromadb.utils import embedding_functions
 import numpy as np
+from sklearn.cluster import KMeans
 from dotenv import load_dotenv
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
@@ -24,8 +26,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = chromadb.PersistentClient(path="./music_db")
-collection = client.get_collection(name="spotify_tracks")
+# Inicjalizacja wielojęzycznego modelu AI dla wektorów
+sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+    model_name="paraphrase-multilingual-MiniLM-L12-v2"
+)
+
+db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "music_db")
+client = chromadb.PersistentClient(path=db_path)
+collection = client.get_or_create_collection(
+    name="spotify_tracks",
+    embedding_function=sentence_transformer_ef
+)
 
 try:
     sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope="user-top-read playlist-read-private playlist-read-collaborative"))
@@ -55,7 +66,6 @@ class PlaylistLinkQuery(BaseModel):
     playlist_url: str
     num_results: int = 10
 
-# NOWOŚĆ: Model dla wyszukiwania po profilu zalogowanego użytkownika
 class UserProfileQuery(BaseModel):
     time_range: str = "medium_term"  # short_term, medium_term, long_term
     num_results: int = 10
@@ -91,40 +101,82 @@ def recommend_by_mood(query: MoodQuery):
 @app.post("/api/recommend/profile")
 def recommend_by_profile(query: ProfileQuery):
     data = collection.get(ids=query.track_ids, include=["embeddings", "metadatas"])
-    embeddings = data.get("embeddings")
+    retrieved_ids = data.get("ids", [])
+    retrieved_embeddings = data.get("embeddings", [])
     
-    if embeddings is None or len(embeddings) == 0:
+    if not retrieved_embeddings:
         raise HTTPException(status_code=404, detail="Żaden z utworów z Twojego profilu/playlisty nie znajduje się jeszcze w bazie ChromaDB. Użyj najpierw loadera, aby zasilić bazę utworami.")
         
-    taste_vector = np.mean(embeddings, axis=0).tolist()
-    safe_n_results = min((query.num_results * 2) + len(query.track_ids), collection.count())
+    # Budowanie słownika dla zachowania oryginalnej kolejności i przypisania wag
+    emb_dict = {id_: emb for id_, emb in zip(retrieved_ids, retrieved_embeddings)}
     
-    if safe_n_results == 0:
+    ordered_embeddings = []
+    weights = []
+    
+    # Przypisywanie wag (wyższe na liście = większa waga)
+    for i, t_id in enumerate(query.track_ids):
+        if t_id in emb_dict:
+            ordered_embeddings.append(emb_dict[t_id])
+            weight = max(0.2, 1.0 - (i / len(query.track_ids)))
+            weights.append(weight)
+            
+    ordered_embeddings = np.array(ordered_embeddings)
+    
+    # Zabezpieczenie przed zbyt małą liczbą próbek do klastrowania
+    n_clusters = min(3, len(ordered_embeddings))
+    
+    if n_clusters > 1:
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init="auto")
+        kmeans.fit(ordered_embeddings, sample_weight=weights)
+        cluster_centers = kmeans.cluster_centers_.tolist()
+    else:
+        # Fallback jeśli mamy tylko 1 utwór
+        cluster_centers = [np.average(ordered_embeddings, axis=0, weights=weights).tolist()]
+
+    # Odpytywanie dla każdego z klastrów
+    results_per_cluster = max(1, (query.num_results * 2) // n_clusters)
+    safe_n_results = min(results_per_cluster + len(query.track_ids), collection.count())
+    
+    if collection.count() == 0:
         raise HTTPException(status_code=400, detail="Baza danych jest pusta!")
 
-    results = collection.query(query_embeddings=[taste_vector], n_results=safe_n_results)
+    results = collection.query(
+        query_embeddings=cluster_centers, 
+        n_results=safe_n_results
+    )
     
-    recommendations = []
-    if results['ids'] and len(results['ids']) > 0:
-        for i in range(len(results['ids'][0])):
-            rec_id = results['ids'][0][i]
-            rec_artist = results['metadatas'][0][i]['artist']
-            rec_title = results['metadatas'][0][i]['title']
+    all_recommendations = []
+    seen_ids = set(query.track_ids)
+    
+    # Zbieranie unikalnych wyników z wielu klastrów
+    for cluster_idx in range(len(cluster_centers)):
+        if not results['ids'] or len(results['ids']) <= cluster_idx:
+            continue
+            
+        for i in range(len(results['ids'][cluster_idx])):
+            rec_id = results['ids'][cluster_idx][i]
+            rec_artist = results['metadatas'][cluster_idx][i]['artist']
+            rec_title = results['metadatas'][cluster_idx][i]['title']
             
             rec_sig = f"{rec_artist.lower().strip()} - {clean_title(rec_title)}"
             
-            if rec_id in query.track_ids: continue
-            if rec_sig in query.exclude_signatures: continue
-            
-            recommendations.append({
+            if rec_id in seen_ids or rec_sig in query.exclude_signatures: 
+                continue
+                
+            all_recommendations.append({
                 "id": rec_id,
                 "artist": rec_artist,
                 "title": rec_title,
-                "distance": float(results['distances'][0][i])
+                "distance": float(results['distances'][cluster_idx][i])
             })
-            if len(recommendations) == query.num_results: break
+            seen_ids.add(rec_id)
+
+    # Sortowanie poległości względem poszczególnych klastrów (im mniej tym lepiej)
+    all_recommendations.sort(key=lambda x: x["distance"])
+    
+    final_recommendations = all_recommendations[:query.num_results]
                 
-    return {"analyzed_tracks_count": len(embeddings), "recommendations": recommendations}
+    return {"analyzed_tracks_count": len(ordered_embeddings), "recommendations": final_recommendations}
 
 @app.post("/api/recommend/playlist-link")
 def recommend_by_playlist_link(query: PlaylistLinkQuery):
@@ -158,19 +210,16 @@ def recommend_by_playlist_link(query: PlaylistLinkQuery):
     if not track_ids: raise HTTPException(status_code=404, detail="Playlista jest pusta.")
     return recommend_by_profile(ProfileQuery(track_ids=track_ids, exclude_signatures=exclude_sigs, num_results=query.num_results))
 
-# --- NOWY ENDPOINT: REKOMENDACJA NA PODSTAWIE PROFILU UŻYTKOWNIKA ---
 @app.post("/api/recommend/user-profile")
 def recommend_by_user_profile(query: UserProfileQuery):
     if not sp:
         raise HTTPException(status_code=500, detail="Spotify API nie jest skonfigurowane w pliku .env")
         
-    # Walidacja przekazanego okresu czasu
     if query.time_range not in ["short_term", "medium_term", "long_term"]:
         raise HTTPException(status_code=400, detail="time_range musi być jednym z: short_term, medium_term, long_term")
 
     print(f"\n--- ANALIZA PROFILU UŻYTKOWNIKA ({query.time_range}) ---")
 
-    # 1. Pobieramy top 50 utworów zalogowanego użytkownika ze Spotify
     try:
         results = sp.current_user_top_tracks(limit=50, time_range=query.time_range)
         items = results.get('items', [])
@@ -183,7 +232,6 @@ def recommend_by_user_profile(query: UserProfileQuery):
     track_ids = []
     exclude_sigs = []
 
-    # 2. Budujemy listy ID oraz tekstowych sygnatur wykluczeń (Ghost IDs)
     for track in items:
         if not track or track.get('is_local'): 
             continue
@@ -201,7 +249,6 @@ def recommend_by_user_profile(query: UserProfileQuery):
 
     print(f"Wyodrębniono {len(track_ids)} utworów do stworzenia Wektora Gustu.")
 
-    # 3. Przekazujemy zebrane utwory użytkownika do naszego silnika wektorowego
     return recommend_by_profile(ProfileQuery(
         track_ids=track_ids,
         exclude_signatures=exclude_sigs,

@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import chromadb
+from chromadb.utils import embedding_functions
 
 # =====================================================================
 #                          KONFIGURACJA
@@ -13,14 +14,22 @@ import chromadb
 load_dotenv()
 LASTFM_API_KEY = os.getenv("LASTFM_API_KEY")
 
-# Podłączamy się do Spotify (używamy open_browser=False w razie problemów z Mac)
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
     scope="user-top-read playlist-read-private playlist-read-collaborative",
     open_browser=False
 ))
 
-client = chromadb.PersistentClient(path="./music_db")
-collection = client.get_or_create_collection(name="spotify_tracks")
+# Nowy, wielojęzyczny model NLP
+sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+    model_name="paraphrase-multilingual-MiniLM-L12-v2"
+)
+
+db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "music_db")
+client = chromadb.PersistentClient(path=db_path)
+collection = client.get_or_create_collection(
+    name="spotify_tracks",
+    embedding_function=sentence_transformer_ef
+)
 
 # =====================================================================
 #                          FUNKCJE POMOCNICZE
@@ -80,9 +89,8 @@ if __name__ == "__main__":
     existing_signatures = get_existing_signatures()
     print(f"Baza zawiera obecnie {len(existing_signatures)} unikalnych utworów.\n")
 
-    # 1. Pobieranie utworów ze wszystkich 3 przedziałów czasowych
     time_ranges = ["short_term", "medium_term", "long_term"]
-    unique_tracks = {} # Używamy słownika, by łatwo pozbyć się duplikatów po ID
+    unique_tracks = {}
 
     print("Łączenie z Twoim kontem Spotify...")
     
@@ -113,6 +121,10 @@ if __name__ == "__main__":
         artist_name = artists[0].get('name', 'Nieznany artysta')
         track_id = track.get('id')
         
+        # Pobieranie roku z albumu na Spotify
+        album = track.get('album', {})
+        year = album.get('release_date', '')[:4] if album.get('release_date') else 'Brak'
+        
         sig = f"{artist_name.lower().strip()} - {clean_title(raw_title)}"
         print(f"[{i+1}/{len(selected_items)}] {artist_name} - {raw_title}")
         
@@ -121,7 +133,7 @@ if __name__ == "__main__":
             continue
             
         tags = get_lastfm_tags(artist_name, clean_title(raw_title))
-        time.sleep(0.2) # Ochrona przed banem z Last.fm
+        time.sleep(0.2) 
         
         valid_tags = [t for t in tags if t not in banned_tags and len(t.split()) <= 3][:10]
         
@@ -131,13 +143,15 @@ if __name__ == "__main__":
 
         tags_string = ", ".join(valid_tags)
         
-        docs_to_insert.append(tags_string)
+        # Tworzenie wzbogaconego zdania
+        document_text = f"Wykonawca: {artist_name}. Rok wydania: {year}. Gatunki i klimat: {tags_string}."
+        
+        docs_to_insert.append(document_text)
         metadatas_to_insert.append({"artist": artist_name, "title": raw_title, "spotify_id": track_id})
         ids_to_insert.append(track_id)
         
         existing_signatures.add(sig) 
 
-    # 3. Końcowy zapis do bazy
     if docs_to_insert:
         print(f"\nRozpoczynam zapis {len(docs_to_insert)} Twoich ulubionych utworów do bazy ChromaDB...")
         collection.upsert(
