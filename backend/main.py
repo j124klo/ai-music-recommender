@@ -104,7 +104,7 @@ def recommend_by_profile(query: ProfileQuery):
     retrieved_ids = data.get("ids", [])
     retrieved_embeddings = data.get("embeddings", [])
     
-    if not retrieved_embeddings:
+    if retrieved_embeddings is None or len(retrieved_embeddings) == 0:
         raise HTTPException(status_code=404, detail="Żaden z utworów z Twojego profilu/playlisty nie znajduje się jeszcze w bazie ChromaDB. Użyj najpierw loadera, aby zasilić bazę utworami.")
         
     # Budowanie słownika dla zachowania oryginalnej kolejności i przypisania wag
