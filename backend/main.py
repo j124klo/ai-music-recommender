@@ -70,6 +70,28 @@ class UserProfileQuery(BaseModel):
 
 # --- ENDPOINTY ---
 
+@app.get("/")
+def read_root():
+    return {
+        "status": "online",
+        "message": "AI Music Recommender Engine is running",
+        "system_health": {
+            "database": {
+                "tracks_count": collection.count(),
+                "db_path": db_path,
+                "status": "ok" if collection.count() > 0 else "empty"
+            },
+            "spotify_api": {
+                "status": "connected" if sp else "disconnected",
+                "warning": "Check .env file" if not sp else None
+            },
+            "ai_engine": {
+                "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+                "clustering_algorithm": "K-Means (Dynamic with Silhouette Score)"
+            }
+        }
+    }
+
 @app.post("/api/recommend/mood")
 def recommend_by_mood(query: MoodQuery):
     query_kwargs = {"query_texts": [query.mood_text], "n_results": query.num_results}
