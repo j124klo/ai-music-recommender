@@ -266,15 +266,38 @@ export default function App() {
                 
                 <div className="space-y-3">
                   {results.recommendations.map((track, idx) => (
+                    <div className="space-y-3">
+                  {results.recommendations.map((track, idx) => (
                     <div key={track.id} className="bg-gray-950 border border-gray-800 rounded-xl p-4 flex items-center justify-between hover:border-gray-700 transition-colors group">
                       <div className="flex items-center gap-4">
                         <div className="text-gray-600 font-mono text-sm w-4">{idx + 1}</div>
+                        
+                        {/* NOWOŚĆ 1: Wskaźnik Koloru Klastra (Pionowy pasek) */}
+                        {track.cluster_id && (
+                          <div className={`w-1.5 h-10 rounded-full ${
+                            track.cluster_id === 1 ? 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]' : 
+                            track.cluster_id === 2 ? 'bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.5)]' : 
+                            track.cluster_id === 3 ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]' : 'bg-green-500'
+                          }`}></div>
+                        )}
+
                         <div>
                           <div className="text-white font-medium group-hover:text-green-400 transition-colors">
                             {track.title}
                           </div>
-                          <div className="text-gray-400 text-sm">
+                          <div className="text-gray-400 text-sm flex items-center gap-2 mt-1">
                             {track.artist}
+                            
+                            {/* NOWOŚĆ 2: Odznaka Klastra z opisem */}
+                            {track.cluster_id && (
+                              <span className={`text-[10px] font-medium px-2 py-0.5 rounded-md border ${
+                                track.cluster_id === 1 ? 'border-purple-500/30 text-purple-400 bg-purple-500/10' : 
+                                track.cluster_id === 2 ? 'border-cyan-500/30 text-cyan-400 bg-cyan-500/10' : 
+                                track.cluster_id === 3 ? 'border-yellow-500/30 text-yellow-400 bg-yellow-500/10' : 'border-green-500/30 text-green-400 bg-green-500/10'
+                              }`}>
+                                Twoje Alter Ego #{track.cluster_id}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -287,6 +310,8 @@ export default function App() {
                         </div>
                       </div>
                     </div>
+                  ))}
+                </div>
                   ))}
                 </div>
               </div>
