@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import warnings
+
 warnings.filterwarnings("ignore") # Wyłączamy ostrzeżenia scikit-learn
 
 # --- INICJALIZACJA ---

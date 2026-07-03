@@ -199,7 +199,7 @@ export default function App() {
                       {cluster.cluster_id && (
                         <h3 className={`text-sm font-bold uppercase tracking-wider mb-3 flex items-center gap-2 ${colors.text}`}>
                           <div className={`w-3 h-3 rounded-full ${colors.bg} ${colors.shadow}`}></div>
-                          Twoje Alter Ego #{cluster.cluster_id}
+                          Rekomendacje #{cluster.cluster_id}
                         </h3>
                       )}
                       
