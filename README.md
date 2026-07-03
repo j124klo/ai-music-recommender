@@ -78,7 +78,9 @@ linux/mac os
 
 Ctrl + C to shut down
 
-You can see ai music recommender api at http://127.0.0.1:8000/docs
+You can see ai music recommender api at:
+
+http://127.0.0.1:8000/docs
 
 ########################################################################################
 
@@ -92,6 +94,18 @@ npm install
 
 3 Uruchom serwer deweloperski Vite:
 npm run dev
+
+########################################################################################
+
+jeśli przy włączaniu serwera jest jakiś naprawdę długi error, ale nic na czerwono,
+
+prawdopodobnie wystarczą te 2 komendy:
+
+(w cd backend)
+
+pip install --upgrade sentence-transformers
+
+pip install --upgrade chromadb
 
 ########################################################################################
 
