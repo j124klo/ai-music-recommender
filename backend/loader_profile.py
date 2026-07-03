@@ -7,6 +7,7 @@ import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import chromadb
 from chromadb.utils import embedding_functions
+import config
 
 # =====================================================================
 #                          KONFIGURACJA
@@ -19,15 +20,13 @@ sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
     open_browser=False
 ))
 
-# Nowy, wielojęzyczny model NLP
 sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="paraphrase-multilingual-MiniLM-L12-v2"
+    model_name=config.MODEL_NAME 
 )
 
-db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "music_db")
-client = chromadb.PersistentClient(path=db_path)
+client = chromadb.PersistentClient(path=config.DB_PATH)
 collection = client.get_or_create_collection(
-    name="spotify_tracks",
+    name=config.COLLECTION_NAME,
     embedding_function=sentence_transformer_ef
 )
 
@@ -121,7 +120,6 @@ if __name__ == "__main__":
         artist_name = artists[0].get('name', 'Nieznany artysta')
         track_id = track.get('id')
         
-        # Pobieranie roku z albumu na Spotify
         album = track.get('album', {})
         year = album.get('release_date', '')[:4] if album.get('release_date') else 'Brak'
         
@@ -143,7 +141,6 @@ if __name__ == "__main__":
 
         tags_string = ", ".join(valid_tags)
         
-        # Tworzenie wzbogaconego zdania
         document_text = f"Wykonawca: {artist_name}. Rok wydania: {year}. Gatunki i klimat: {tags_string}."
         
         docs_to_insert.append(document_text)

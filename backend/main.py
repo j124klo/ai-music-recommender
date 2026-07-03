@@ -1,4 +1,3 @@
-import os
 import re
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -12,8 +11,9 @@ from dotenv import load_dotenv
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import warnings
+import config
 
-warnings.filterwarnings("ignore") # Wyłączamy ostrzeżenia scikit-learn
+warnings.filterwarnings("ignore")
 
 # --- INICJALIZACJA ---
 load_dotenv()
@@ -28,14 +28,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "music_db")
-
 sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="paraphrase-multilingual-MiniLM-L12-v2"
+    model_name=config.MODEL_NAME
 )
 
-client = chromadb.PersistentClient(path=db_path)
-collection = client.get_or_create_collection(name="spotify_tracks", embedding_function=sentence_transformer_ef)
+client = chromadb.PersistentClient(path=config.DB_PATH)
+collection = client.get_or_create_collection(name=config.COLLECTION_NAME, embedding_function=sentence_transformer_ef)
 
 try:
     sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope="user-top-read playlist-read-private playlist-read-collaborative"))
@@ -54,42 +52,35 @@ def clean_title(title):
 class MoodQuery(BaseModel):
     mood_text: str
     exclude_text: Optional[str] = None
-    num_results: int = 5
+    num_results: int = config.DEFAULT_MOOD_RECS
 
 class ProfileQuery(BaseModel):
     track_ids: List[str]
     exclude_signatures: List[str] = []
-    num_results: int = 12 # Domyślnie proponujemy np 12, aby łatwo dzieliło się przez klastry
+    num_results: int = config.DEFAULT_PROFILE_RECS
 
 class PlaylistLinkQuery(BaseModel):
     playlist_url: str
-    num_results: int = 12
+    num_results: int = config.DEFAULT_PLAYLIST_RECS
 
 class UserProfileQuery(BaseModel):
     time_range: str = "medium_term"  
-    num_results: int = 12
+    num_results: int = config.DEFAULT_PROFILE_RECS
 
 # --- ENDPOINTY ---
 
 @app.get("/")
 def read_root():
     return {
-        "status": "online",
-        "message": "AI Music Recommender Engine is running",
-        "system_health": {
-            "database": {
-                "tracks_count": collection.count(),
-                "db_path": db_path,
-                "status": "ok" if collection.count() > 0 else "empty"
-            },
-            "spotify_api": {
-                "status": "connected" if sp else "disconnected",
-                "warning": "Check .env file" if not sp else None
-            },
-            "ai_engine": {
-                "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
-                "clustering_algorithm": "K-Means (Dynamic with Silhouette Score)"
-            }
+        "api_status": "online",
+        "version": "1.0.0",
+        "system_config": {
+            "loaded_ai_model": config.MODEL_NAME,
+            "database_collection": config.COLLECTION_NAME
+        },
+        "health": {
+            "database_tracks_count": collection.count(),
+            "spotify_api_connected": sp is not None
         }
     }
 
@@ -114,7 +105,6 @@ def recommend_by_mood(query: MoodQuery):
                 "distance": float(results['distances'][0][i])
             })
             
-    # Ujednolicamy format odpowiedzi do frontendu (Dla mood mamy tylko 1 "pusty" klaster)
     return {
         "query": query.mood_text, 
         "analyzed_tracks_count": 1,
@@ -128,7 +118,6 @@ def recommend_by_profile(query: ProfileQuery):
     retrieved_ids = data.get("ids")
     retrieved_embeddings = data.get("embeddings")
     
-    # PANCERNE ZABEZPIECZENIE (Naprawia błąd ValueError z tablicami Numpy)
     if retrieved_embeddings is None or len(retrieved_embeddings) == 0:
         raise HTTPException(status_code=404, detail="Brak Twoich utworów w bazie ChromaDB.")
         
@@ -143,7 +132,6 @@ def recommend_by_profile(query: ProfileQuery):
             
     ordered_embeddings = np.array(ordered_embeddings)
     
-    # --- DYNAMICZNE WYZNACZANIE KLASTRÓW (Silhouette Score) ---
     max_k = min(5, len(ordered_embeddings) - 1)
     best_k = 1
     best_kmeans = None
@@ -154,7 +142,6 @@ def recommend_by_profile(query: ProfileQuery):
             kmeans = KMeans(n_clusters=k, random_state=42, n_init="auto")
             labels = kmeans.fit_predict(ordered_embeddings, sample_weight=weights)
             
-            # Algorytm sylwetki wymaga co najmniej 2 klas
             if len(set(labels)) > 1:
                 score = silhouette_score(ordered_embeddings, labels)
                 if score > best_score:
@@ -162,7 +149,6 @@ def recommend_by_profile(query: ProfileQuery):
                     best_k = k
                     best_kmeans = kmeans
         
-        # Jeśli najwyższy wynik jest mniejszy niż 0.1, zbiór jest na tyle spójny, że nie ma sensu go dzielić
         if best_score < 0.1:
             best_k = 1
 
@@ -171,7 +157,6 @@ def recommend_by_profile(query: ProfileQuery):
     else:
         cluster_centers = [np.average(ordered_embeddings, axis=0, weights=weights).tolist()]
 
-    # Odpytywanie bazy
     safe_n_results = min(100, collection.count())
     results = collection.query(
         query_embeddings=cluster_centers, 
@@ -180,10 +165,8 @@ def recommend_by_profile(query: ProfileQuery):
     
     response_clusters = []
     seen_ids = set(query.track_ids)
-    # Śledzimy też sygnatury tekstowe (Wykonawca - Tytuł), aby uniknąć różnych wersji tej samej piosenki!
     seen_sigs = set(query.exclude_signatures)
     
-    # Równy podział wyników na liczbę klastrów
     results_per_cluster = max(1, query.num_results // len(cluster_centers))
     remaining = query.num_results % len(cluster_centers)
     
@@ -196,7 +179,7 @@ def recommend_by_profile(query: ProfileQuery):
             
         for i in range(len(results['ids'][cluster_idx])):
             if len(cluster_recs) >= target_count:
-                break # Mamy już odpowiednią liczbę piosenek dla tego klastra
+                break 
                 
             rec_id = results['ids'][cluster_idx][i]
             rec_artist = results['metadatas'][cluster_idx][i]['artist']
@@ -204,7 +187,6 @@ def recommend_by_profile(query: ProfileQuery):
             
             rec_sig = f"{rec_artist.lower().strip()} - {clean_title(rec_title)}"
             
-            # Weryfikacja duplikatów wewnątrz bazy (ten sam utwór, inne ID)
             if rec_id in seen_ids or rec_sig in seen_sigs: 
                 continue
                 
@@ -218,7 +200,6 @@ def recommend_by_profile(query: ProfileQuery):
             seen_ids.add(rec_id)
             seen_sigs.add(rec_sig)
 
-        # Sortujemy utwory W RAMACH jednego klastra
         cluster_recs.sort(key=lambda x: x["distance"])
         
         response_clusters.append({

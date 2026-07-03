@@ -248,3 +248,7 @@ Thumbs.db
 
 # Baza wektorowa ChromaDB
 music_db/
+
+# Pliki i foldery związane z modelem AI
+ai_muzyczne_v3/
+ai_muzyczne_v3.zip
