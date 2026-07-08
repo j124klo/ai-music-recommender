@@ -13,7 +13,7 @@ export default function App() {
   const [excludeText, setExcludeText] = useState('');
   const [playlistUrl, setPlaylistUrl] = useState('');
   const [timeRange, setTimeRange] = useState('medium_term');
-  const [numResults, setNumResults] = useState(9); // Domyślnie 9 (ładnie dzieli się na 1, 2 i 3 klastry)
+  const [numResults, setNumResults] = useState(9); // Default 9 (divides nicely into 1, 2, and 3 clusters)
 
   const handleFetch = async (endpoint, payload) => {
     setLoading(true);
@@ -31,11 +31,11 @@ export default function App() {
       });
       
       const data = await response.json();
-      if (!response.ok) throw new Error(data.detail || 'Wystąpił błąd podczas komunikacji z serwerem.');
+      if (!response.ok) throw new Error(data.detail || 'An error occurred while communicating with the server.');
       setResults(data);
     } catch (err) {
       setError(err.message === 'Failed to fetch' 
-        ? 'Błąd połączenia. Upewnij się, że backend działa (start_server.bat).' 
+        ? 'Connection error. Make sure the backend is running (start_server.bat).' 
         : err.message);
     } finally {
       setLoading(false);
@@ -57,7 +57,7 @@ export default function App() {
 
   const calculateMatch = (distance) => Math.max(0, 100 - (distance * 100)).toFixed(0);
 
-  // Funkcja dobierająca kolory dla poszczególnych klastrów
+  // Function to get colors for different clusters
   const getClusterColor = (id) => {
     switch (id) {
       case 1: return { bg: 'bg-purple-500', text: 'text-purple-400', border: 'border-purple-500/30', shadow: 'shadow-[0_0_8px_rgba(168,85,247,0.5)]' };
@@ -79,7 +79,7 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight">AI Music Recommender</h1>
-            <p className="text-gray-400 text-sm">Wektorowy silnik analizy gustu muzycznego z dynamicznym klastrowaniem</p>
+            <p className="text-gray-400 text-sm">Vector music taste analysis engine with dynamic clustering</p>
           </div>
         </div>
       </header>
@@ -89,56 +89,56 @@ export default function App() {
         {/* Left Column: Controls */}
         <div className="md:col-span-5 space-y-6">
           <div className="bg-gray-900 rounded-2xl p-2 flex flex-col gap-2 border border-gray-800">
-            <button onClick={() => setActiveTab('mood')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'mood' ? 'bg-gray-800 text-green-400 font-medium' : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}><Search className="w-5 h-5" />Szukaj po nastroju</button>
-            <button onClick={() => setActiveTab('playlist')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'playlist' ? 'bg-gray-800 text-green-400 font-medium' : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}><LinkIcon className="w-5 h-5" />Z linku do playlisty</button>
-            <button onClick={() => setActiveTab('profile')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'profile' ? 'bg-gray-800 text-green-400 font-medium' : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}><User className="w-5 h-5" />Twój profil Spotify</button>
+            <button onClick={() => setActiveTab('mood')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'mood' ? 'bg-gray-800 text-green-400 font-medium' : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}><Search className="w-5 h-5" />Search by mood</button>
+            <button onClick={() => setActiveTab('playlist')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'playlist' ? 'bg-gray-800 text-green-400 font-medium' : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}><LinkIcon className="w-5 h-5" />From playlist link</button>
+            <button onClick={() => setActiveTab('profile')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'profile' ? 'bg-gray-800 text-green-400 font-medium' : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}><User className="w-5 h-5" />Your Spotify profile</button>
           </div>
 
           <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800 shadow-xl">
             {activeTab === 'mood' && (
               <form onSubmit={submitMood} className="space-y-4">
-                <h2 className="text-lg font-semibold text-white mb-4">Opisz swój nastrój</h2>
+                <h2 className="text-lg font-semibold text-white mb-4">Describe your mood</h2>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Czego szukasz?</label>
-                  <input type="text" required value={moodText} onChange={(e) => setMoodText(e.target.value)} placeholder="np. energiczny rock..." className="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-green-500" />
+                  <label className="block text-sm text-gray-400 mb-1">What are you looking for?</label>
+                  <input type="text" required value={moodText} onChange={(e) => setMoodText(e.target.value)} placeholder="e.g., energetic rock..." className="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-green-500" />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Czego NIE chcesz?</label>
-                  <input type="text" value={excludeText} onChange={(e) => setExcludeText(e.target.value)} placeholder="np. metal, smutne..." className="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-red-500" />
+                  <label className="block text-sm text-gray-400 mb-1">What do you NOT want?</label>
+                  <input type="text" value={excludeText} onChange={(e) => setExcludeText(e.target.value)} placeholder="e.g., metal, sad..." className="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-red-500" />
                 </div>
-                <button type="submit" disabled={loading} className="w-full bg-green-500 hover:bg-green-400 text-gray-950 font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}Znajdź muzykę</button>
+                <button type="submit" disabled={loading} className="w-full bg-green-500 hover:bg-green-400 text-gray-950 font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}Find music</button>
               </form>
             )}
 
             {activeTab === 'playlist' && (
               <form onSubmit={submitPlaylist} className="space-y-4">
-                <h2 className="text-lg font-semibold text-white mb-4">Analiza Twojej playlisty</h2>
+                <h2 className="text-lg font-semibold text-white mb-4">Playlist analysis</h2>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Link do playlisty</label>
+                  <label className="block text-sm text-gray-400 mb-1">Playlist link</label>
                   <input type="url" required value={playlistUrl} onChange={(e) => setPlaylistUrl(e.target.value)} className="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-green-500" />
                 </div>
-                <button type="submit" disabled={loading} className="w-full bg-green-500 hover:bg-green-400 text-gray-950 font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Music className="w-5 h-5" />}Wygeneruj z playlisty</button>
+                <button type="submit" disabled={loading} className="w-full bg-green-500 hover:bg-green-400 text-gray-950 font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Music className="w-5 h-5" />}Generate from playlist</button>
               </form>
             )}
 
             {activeTab === 'profile' && (
               <form onSubmit={submitProfile} className="space-y-4">
-                <h2 className="text-lg font-semibold text-white mb-4">Twój gust muzyczny</h2>
+                <h2 className="text-lg font-semibold text-white mb-4">Your music taste</h2>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Okres</label>
+                  <label className="block text-sm text-gray-400 mb-1">Time range</label>
                   <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)} className="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-green-500">
-                    <option value="short_term">Ostatnie 4 tygodnie</option>
-                    <option value="medium_term">Ostatnie 6 miesięcy</option>
-                    <option value="long_term">Cała historia konta</option>
+                    <option value="short_term">Last 4 weeks</option>
+                    <option value="medium_term">Last 6 months</option>
+                    <option value="long_term">All-time history</option>
                   </select>
                 </div>
-                <button type="submit" disabled={loading} className="w-full bg-green-500 hover:bg-green-400 text-gray-950 font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <User className="w-5 h-5" />}Analizuj mój profil</button>
+                <button type="submit" disabled={loading} className="w-full bg-green-500 hover:bg-green-400 text-gray-950 font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <User className="w-5 h-5" />}Analyze my profile</button>
               </form>
             )}
 
             <div className="mt-6 pt-6 border-t border-gray-800">
                <label className="flex items-center justify-between text-sm text-gray-400">
-                  <span>Łączna liczba wyników</span>
+                  <span>Total number of results</span>
                   <input type="number" min="1" max="50" value={numResults} onChange={(e) => setNumResults(e.target.value)} className="w-20 bg-gray-950 border border-gray-700 rounded-lg px-2 py-1 text-white text-center focus:outline-none focus:border-green-500" />
                 </label>
             </div>
@@ -150,13 +150,13 @@ export default function App() {
           <div className="bg-gray-900 rounded-2xl p-6 min-h-[500px] border border-gray-800 shadow-xl">
             <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
               <Headphones className="text-green-500" />
-              Rekomendacje
+              Recommendations
             </h2>
 
             {loading && (
               <div className="h-64 flex flex-col items-center justify-center text-green-500 gap-4">
                 <Loader2 className="w-10 h-10 animate-spin" />
-                <p className="text-gray-400 animate-pulse">Analiza klastrów i wektorów gustu...</p>
+                <p className="text-gray-400 animate-pulse">Analyzing clusters and taste vectors...</p>
               </div>
             )}
 
@@ -170,46 +170,46 @@ export default function App() {
             {!loading && !error && !results && (
               <div className="h-64 flex flex-col items-center justify-center text-gray-500 gap-4">
                 <Music className="w-12 h-12 opacity-20" />
-                <p>Wybierz metodę po lewej i wygeneruj muzykę.</p>
+                <p>Choose a method on the left and generate music.</p>
               </div>
             )}
 
-            {/* Renderowanie Wyników i Klastrów */}
+            {/* Rendering Results and Clusters */}
             {!loading && !error && results && results.clusters && (
               <div className="space-y-8">
                 
-                {/* Informacyjny Header */}
+                {/* Informational Header */}
                 {activeTab !== 'mood' && results.clusters[0]?.cluster_id !== null && (
                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 mb-6">
                       <p className="text-blue-400 font-medium text-sm">
-                        Rozpoznano <span className="font-bold text-white text-lg mx-1">{results.clusters.length}</span> typów muzyki w Twoim guście! 
+                        Detected <span className="font-bold text-white text-lg mx-1">{results.clusters.length}</span> music types in your taste! 
                       </p>
-                      <p className="text-gray-400 text-xs mt-1">Oto rekomendacje pogrupowane na podstawie wykrytych nurtów.</p>
+                      <p className="text-gray-400 text-xs mt-1">Here are recommendations grouped based on the detected genres.</p>
                    </div>
                 )}
 
-                {/* Lista Klastrów */}
+                {/* Clusters List */}
                 {results.clusters.map((cluster) => {
                   const colors = getClusterColor(cluster.cluster_id);
                   
                   return (
                     <div key={cluster.cluster_id || 'mood'} className="space-y-3">
                       
-                      {/* Nagłówek Grupy Klastra */}
+                      {/* Cluster Header */}
                       {cluster.cluster_id && (
                         <h3 className={`text-sm font-bold uppercase tracking-wider mb-3 flex items-center gap-2 ${colors.text}`}>
                           <div className={`w-3 h-3 rounded-full ${colors.bg} ${colors.shadow}`}></div>
-                          Rekomendacje #{cluster.cluster_id}
+                          Recommendations #{cluster.cluster_id}
                         </h3>
                       )}
                       
-                      {/* Piosenki wewnątrz klastra */}
+                      {/* Songs inside cluster */}
                       {cluster.recommendations.map((track, idx) => (
                         <div key={track.id} className="bg-gray-950 border border-gray-800 rounded-xl p-4 flex items-center justify-between hover:border-gray-700 transition-colors group">
                           <div className="flex items-center gap-4">
                             <div className="text-gray-600 font-mono text-sm w-4">{idx + 1}</div>
                             
-                            {/* Wskaźnik koloru */}
+                            {/* Color indicator */}
                             {cluster.cluster_id && (
                               <div className={`w-1 h-8 rounded-full ${colors.bg}`}></div>
                             )}
@@ -229,7 +229,7 @@ export default function App() {
                               {calculateMatch(track.distance)}%
                             </div>
                             <div className="text-gray-600 text-xs">
-                              dopasowania
+                              match
                             </div>
                           </div>
                         </div>

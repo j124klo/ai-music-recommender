@@ -15,7 +15,7 @@ import config
 
 warnings.filterwarnings("ignore")
 
-# --- INICJALIZACJA ---
+# --- INITIALIZATION ---
 load_dotenv()
 app = FastAPI(title="AI Music Recommender API")
 
@@ -38,17 +38,17 @@ collection = client.get_or_create_collection(name=config.COLLECTION_NAME, embedd
 try:
     sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope="user-top-read playlist-read-private playlist-read-collaborative"))
 except Exception as e:
-    print(f"Błąd inicjalizacji Spotify: {e}")
+    print(f"Spotify initialization error: {e}")
     sp = None
 
-# --- FUNKCJE POMOCNICZE ---
+# --- HELPER FUNCTIONS ---
 def clean_title(title):
     title = title.split(" - ")[0]
     title = re.sub(r'\(.*?\)', '', title)
     title = re.sub(r'\[.*?\]', '', title)
     return title.strip().lower()
 
-# --- MODELE DANYCH ---
+# --- DATA MODELS ---
 class MoodQuery(BaseModel):
     mood_text: str
     exclude_text: Optional[str] = None
@@ -67,7 +67,7 @@ class UserProfileQuery(BaseModel):
     time_range: str = "medium_term"  
     num_results: int = config.DEFAULT_PROFILE_RECS
 
-# --- ENDPOINTY ---
+# --- ENDPOINTS ---
 
 @app.get("/")
 def read_root():
@@ -119,7 +119,7 @@ def recommend_by_profile(query: ProfileQuery):
     retrieved_embeddings = data.get("embeddings")
     
     if retrieved_embeddings is None or len(retrieved_embeddings) == 0:
-        raise HTTPException(status_code=404, detail="Brak Twoich utworów w bazie ChromaDB.")
+        raise HTTPException(status_code=404, detail="None of your tracks are in the ChromaDB database.")
         
     emb_dict = {id_: emb for id_, emb in zip(retrieved_ids, retrieved_embeddings)}
     ordered_embeddings = []
@@ -211,7 +211,7 @@ def recommend_by_profile(query: ProfileQuery):
 
 @app.post("/api/recommend/playlist-link")
 def recommend_by_playlist_link(query: PlaylistLinkQuery):
-    if not sp: raise HTTPException(status_code=500, detail="Spotify API nie jest skonfigurowane.")
+    if not sp: raise HTTPException(status_code=500, detail="Spotify API is not configured.")
     try:
         playlist_id = query.playlist_url.split("/")[-1].split("?")[0]
         all_items = []
@@ -221,7 +221,7 @@ def recommend_by_playlist_link(query: PlaylistLinkQuery):
             results = sp.next(results)
             all_items.extend(results.get('items', []))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Błąd API Spotify: {e}")
+        raise HTTPException(status_code=400, detail=f"Spotify API error: {e}")
 
     track_ids, exclude_sigs = [], []
     for list_item in all_items:
@@ -232,17 +232,17 @@ def recommend_by_playlist_link(query: PlaylistLinkQuery):
             artist_name = track['artists'][0]['name'] if track.get('artists') else ""
             exclude_sigs.append(f"{artist_name.lower().strip()} - {clean_title(track.get('name', ''))}")
 
-    if not track_ids: raise HTTPException(status_code=404, detail="Playlista jest pusta.")
+    if not track_ids: raise HTTPException(status_code=404, detail="The playlist is empty.")
     return recommend_by_profile(ProfileQuery(track_ids=track_ids, exclude_signatures=exclude_sigs, num_results=query.num_results))
 
 @app.post("/api/recommend/user-profile")
 def recommend_by_user_profile(query: UserProfileQuery):
-    if not sp: raise HTTPException(status_code=500, detail="Spotify API nie jest skonfigurowane")
+    if not sp: raise HTTPException(status_code=500, detail="Spotify API is not configured.")
     try:
         results = sp.current_user_top_tracks(limit=50, time_range=query.time_range)
         items = results.get('items', [])
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Błąd API Spotify: {e}")
+        raise HTTPException(status_code=400, detail=f"Spotify API error: {e}")
 
     track_ids, exclude_sigs = [], []
     for track in items:
@@ -252,5 +252,5 @@ def recommend_by_user_profile(query: UserProfileQuery):
             artist_name = track['artists'][0]['name'] if track.get('artists') else ""
             exclude_sigs.append(f"{artist_name.lower().strip()} - {clean_title(track.get('name', ''))}")
 
-    if not track_ids: raise HTTPException(status_code=404, detail="Brak utworów w profilu.")
+    if not track_ids: raise HTTPException(status_code=404, detail="No tracks found in the profile.")
     return recommend_by_profile(ProfileQuery(track_ids=track_ids, exclude_signatures=exclude_sigs, num_results=query.num_results))

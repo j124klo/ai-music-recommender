@@ -1,19 +1,19 @@
 #!/bin/bash
-# Skrypt uruchamiający Frontend i Backend jednocześnie (macOS/Linux)
+# Script to start Frontend and Backend simultaneously (macOS/Linux)
 
-# Ta linijka sprawia, że wciśnięcie Ctrl+C zamyka jednocześnie oba serwery
+# This line ensures that pressing Ctrl+C closes both servers
 trap "kill 0" EXIT
 
-echo "Uruchamianie Backend'u (FastAPI)..."
+echo "Starting Backend (FastAPI)..."
 cd backend
 source .venv/bin/activate
 uvicorn main:app --reload &
 cd ..
 
-echo "Uruchamianie Frontend'u (React/Vite)..."
+echo "Starting Frontend (React/Vite)..."
 cd frontend
 npm run dev &
 cd ..
 
-echo "Aplikacja działa! Naciśnij Ctrl+C, aby wyłączyć serwery."
+echo "Application is running! Press Ctrl+C to shut down the servers."
 wait

@@ -10,7 +10,7 @@ from chromadb.utils import embedding_functions
 import config
 
 # =====================================================================
-#                          KONFIGURACJA MODUŁOWA
+#                          MODULAR CONFIGURATION
 # =====================================================================
 load_dotenv()
 LASTFM_API_KEY = os.getenv("LASTFM_API_KEY")
@@ -28,7 +28,7 @@ collection = client.get_or_create_collection(
 )
 
 # =====================================================================
-#                          FUNKCJE POMOCNICZE
+#                          HELPER FUNCTIONS
 # =====================================================================
 
 def load_banned_tags(filepath="banned_tags.txt"):
@@ -36,7 +36,7 @@ def load_banned_tags(filepath="banned_tags.txt"):
         with open(filepath, "r", encoding="utf-8") as f:
             return [line.strip().lower() for line in f if line.strip()]
     except FileNotFoundError:
-        print(f"UWAGA: Nie znaleziono pliku {filepath}. Czarna lista jest pusta.")
+        print(f"WARNING: File {filepath} not found. The blacklist is empty.")
         return []
 
 def clean_title(title):
@@ -83,11 +83,11 @@ def get_existing_signatures():
                     signatures.add(sig)
         return signatures
     except Exception as e:
-        print(f"Błąd odczytu bazy: {e}")
+        print(f"Database read error: {e}")
         return set()
 
 # =====================================================================
-#                          GŁÓWNY PROCES LOADERA
+#                          MAIN LOADER PROCESS
 # =====================================================================
 if __name__ == "__main__":
     print("========================================")
@@ -97,26 +97,26 @@ if __name__ == "__main__":
     banned_tags = load_banned_tags()
     
     existing_signatures = get_existing_signatures()
-    print(f"Baza zawiera obecnie {len(existing_signatures)} unikalnych utworów.\n")
+    print(f"The database currently contains {len(existing_signatures)} unique tracks.\n")
 
-    playlist_url = input("Wklej link do playlisty Spotify: ")
+    playlist_url = input("Paste the Spotify playlist link: ")
     playlist_id = playlist_url.split("/")[-1].split("?")[0]
 
-    print("\nPobieranie pełnej zawartości playlisty ze Spotify...")
+    print("\nFetching full playlist content from Spotify...")
     raw_playlist_items = fetch_all_tracks(playlist_id)
     total_tracks = len(raw_playlist_items)
 
     if total_tracks == 0:
-        print("Błąd: Playlista jest pusta lub niewidoczna dla API.")
+        print("Error: The playlist is empty or not visible to the API.")
         exit()
 
     selected_items = []
 
     if total_tracks <= config.AUTO_DEEP_THRESHOLD:
-        print(f"-> Automatyczne uruchomienie trybu dogłębnego.")
+        print(f"-> Automatic deep mode initiated.")
         selected_items = raw_playlist_items
     else:
-        choice = input(f"Czy użyć trybu szybkiego ({config.FAST_FIRST_COUNT} z początku i {config.FAST_LAST_COUNT} z końca)? [y/n]: ")
+        choice = input(f"Use fast mode ({config.FAST_FIRST_COUNT} from start and {config.FAST_LAST_COUNT} from end)? [y/n]: ")
         if choice.lower() == 'y':
             selected_items = raw_playlist_items[:config.FAST_FIRST_COUNT] + raw_playlist_items[-config.FAST_LAST_COUNT:]
         else:
@@ -128,28 +128,28 @@ if __name__ == "__main__":
     
     total_saved_new_tracks = 0
 
-    print(f"\nRozpoczynam analizę {len(selected_items)} wybranych utworów...\n")
+    print(f"\nStarting analysis of {len(selected_items)} selected tracks...\n")
 
     for i, list_item in enumerate(selected_items):
         track = list_item.get('track') or list_item.get('item')
         if not track or not isinstance(track, dict) or track.get('is_local'): continue
             
-        raw_title = track.get('name', 'Nieznany tytuł')
+        raw_title = track.get('name', 'Unknown title')
         artists = track.get('artists', [])
         if not artists: continue
         
-        artist_name = artists[0].get('name', 'Nieznany artysta')
+        artist_name = artists[0].get('name', 'Unknown artist')
         track_id = track.get('id')
         if not track_id: continue
         
         album = track.get('album', {})
-        year = album.get('release_date', '')[:4] if album.get('release_date') else 'Brak'
+        year = album.get('release_date', '')[:4] if album.get('release_date') else 'None'
         
         sig = f"{artist_name.lower().strip()} - {clean_title(raw_title)}"
         print(f"[{i+1}/{len(selected_items)}] {artist_name} - {raw_title}")
         
         if sig in existing_signatures:
-            print("   -> Pomijam (Utwór już istnieje w bazie!)")
+            print("   -> Skipping (Track already exists in the database!)")
             continue
             
         tags = get_lastfm_tags(artist_name, clean_title(raw_title))
@@ -158,12 +158,13 @@ if __name__ == "__main__":
         valid_tags = [t for t in tags if t not in banned_tags and len(t.split()) <= 4][:10]
         
         if not valid_tags:
-            print("   -> Pomijam (brak wartościowych tagów)")
+            print("   -> Skipping (no valuable tags found)")
             continue
 
         tags_string = ", ".join(valid_tags)
         
-        document_text = f"Wykonawca: {artist_name}. Rok wydania: {year}. Gatunki i klimat: {tags_string}."
+        # English translation of the embedding document text format
+        document_text = f"Artist: {artist_name}. Release year: {year}. Genres and mood: {tags_string}."
         
         docs_to_insert.append(document_text)
         metadatas_to_insert.append({"artist": artist_name, "title": raw_title, "spotify_id": track_id})
@@ -173,22 +174,22 @@ if __name__ == "__main__":
 
         # --- CHECKPOINTING ---
         if len(docs_to_insert) >= config.BATCH_SAVE_SIZE:
-            print(f"\n[AUTO-ZAPIS] Osiągnięto paczkę {config.BATCH_SAVE_SIZE} utworów. Zapisuję do bazy wektorowej...")
+            print(f"\n[AUTO-SAVE] Reached a batch of {config.BATCH_SAVE_SIZE} tracks. Saving to the vector database...")
             collection.upsert(
                 documents=docs_to_insert,
                 metadatas=metadatas_to_insert,
                 ids=ids_to_insert
             )
             total_saved_new_tracks += len(docs_to_insert)
-            print("[AUTO-ZAPIS] Pomyślnie zrzucono dane na dysk. Wznawiam odpytywanie Last.fm...\n")
+            print("[AUTO-SAVE] Successfully flushed data to disk. Resuming Last.fm queries...\n")
             
             docs_to_insert = []
             metadatas_to_insert = []
             ids_to_insert = []
 
-    # --- ZAPIS KOŃCOWY ---
+    # --- FINAL SAVE ---
     if docs_to_insert:
-        print(f"\nRozpoczynam zapis końcowy ostatnich {len(docs_to_insert)} utworów do bazy ChromaDB...")
+        print(f"\nStarting final save of the last {len(docs_to_insert)} tracks to ChromaDB...")
         collection.upsert(
             documents=docs_to_insert,
             metadatas=metadatas_to_insert,
@@ -197,6 +198,6 @@ if __name__ == "__main__":
         total_saved_new_tracks += len(docs_to_insert)
 
     if total_saved_new_tracks > 0:
-        print(f"\nSukces! Zakończono pracę. Pomyślnie dodano łącznie {total_saved_new_tracks} NOWYCH utworów do bazy wektorowej!")
+        print(f"\nSuccess! Job finished. Successfully added a total of {total_saved_new_tracks} NEW tracks to the vector database!")
     else:
-        print("\nNie dodano nowych danych (wszystkie utwory były duplikatami lub brakło tagów).")
+        print("\nNo new data added (all tracks were duplicates or lacked tags).")

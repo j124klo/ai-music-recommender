@@ -84,24 +84,24 @@ http://127.0.0.1:8000/docs
 
 ########################################################################################
 
-warning trzeba pobrać Node.js z przeglądarki
+Warning: you need to download Node.js from your browser
 
-1 Otwórz drugie, nowe okno terminala i wejdź do folderu frontendu:
+1 Open a second, new terminal window and navigate to the frontend folder:
 cd frontend
 
-2 Zainstaluj zależności zdefiniowane w pliku package.json:
+2 Install dependencies defined in the package.json file:
 npm install
 
-3 Uruchom serwer deweloperski Vite:
+3 Start the Vite development server:
 npm run dev
 
 ########################################################################################
 
-jeśli przy włączaniu serwera jest jakiś naprawdę długi error, ale nic na czerwono,
+If there is a really long error when starting the server, but nothing in red,
 
-prawdopodobnie wystarczą te 2 komendy:
+these 2 commands will probably suffice:
 
-(w cd backend)
+(in cd backend)
 
 pip install --upgrade sentence-transformers
 
