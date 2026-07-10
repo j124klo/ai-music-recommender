@@ -74,6 +74,6 @@ plt.legend(fontsize=12)
 plt.grid(True, linestyle='--', alpha=0.5)
 
 # Save file
-plt.savefig('dowod_kmeans.png', dpi=300, bbox_inches='tight')
-print("Success! Plot saved as 'dowod_kmeans.png' in your main folder.")
+plt.savefig('kmeans_evaluation.png', dpi=300, bbox_inches='tight')
+print("Success! Plot saved as 'kmeans_evaluation.png' in your main folder.")
 plt.show()
